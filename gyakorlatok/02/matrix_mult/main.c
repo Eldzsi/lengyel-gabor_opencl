@@ -19,60 +19,40 @@ const char* kernel_code =
 
 
 void printMatrix(int* matrix, int size);
+char* loadKernelFromFile(const char* filename, size_t* kernel_size);
 
 
 int main(void) {
-    int i;
     cl_int err;
+    const int matrix_size = MATRIX_SIZE;
 
     int A[MATRIX_SIZE*MATRIX_SIZE] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
     int B[MATRIX_SIZE*MATRIX_SIZE] = {9, 8, 7, 6, 5, 4, 3, 2, 1};
     int C[MATRIX_SIZE*MATRIX_SIZE];
 
-
-    // Get platform
-    cl_uint n_platforms;
+    // OpenCL inicializálás
     cl_platform_id platform_id;
-    err = clGetPlatformIDs(1, &platform_id, &n_platforms);
-    if (err != CL_SUCCESS) {
-        printf("[ERROR] Error calling clGetPlatformIDs. Error code: %d\n", err);
-        return -1;
-    }
-
-    // Get device
     cl_device_id device_id;
-    cl_uint n_devices;
-    err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
-    if (err != CL_SUCCESS) {
-        printf("[ERROR] Error calling clGetDeviceIDs. Error code: %d\n", err);
-        return -1;
-    }
+    cl_uint n_platforms, n_devices;
+    err = clGetPlatformIDs(1, &platform_id, &n_platforms);
+    err |= clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
 
-    // Create OpenCL context
+    // OpenCL kontextus létrehozása
     cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
-    if (!context) {
-        printf("[ERROR] Failed to create OpenCL context. Error code: %d\n", err);
+
+    // Kernel fájlból betöltése
+    size_t kernel_size;
+    char* kernel_source = loadKernelFromFile("matrix_mult.cl", &kernel_size);
+    if (!kernel_source) {
         return -1;
     }
 
-    // Build the program
-    cl_program program = clCreateProgramWithSource(context, 1, &kernel_code, NULL, &err);
-    if (!program) {
-        printf("[ERROR] Failed to create program. Error code: %d\n", err);
-        return -1;
-    }
-    
+    // Program és kernel létrehozása
+    cl_program program = clCreateProgramWithSource(context, 1, (const char**)&kernel_source, &kernel_size, &err);
+    free(kernel_source);
+
     err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
-    if (err != CL_SUCCESS) {
-        printf("Build error! Code: %d\n", err);
-        return -1;
-    }
-
     cl_kernel kernel = clCreateKernel(program, "matrix_mult", &err);
-    if (!kernel) {
-        printf("[ERROR] Failed to create kernel. Error code: %d\n", err);
-        return -1;
-    }
 
     // Create the device buffers
     cl_mem buffer_A = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(A), A, &err);
@@ -80,20 +60,16 @@ int main(void) {
     cl_mem buffer_C = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(C), NULL, &err);
 
     // Set kernel arguments
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&buffer_A);
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&buffer_B);
-    clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&buffer_C);
-    const int matrix_size = MATRIX_SIZE;
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer_A);
+    clSetKernelArg(kernel, 1, sizeof(cl_mem), &buffer_B);
+    clSetKernelArg(kernel, 2, sizeof(cl_mem), &buffer_C);
     clSetKernelArg(kernel, 3, sizeof(int), &matrix_size);
-    
 
     // Create the command queue
-    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &err);
-
-    // Size specification
-    size_t global_work_size[2] = {MATRIX_SIZE, MATRIX_SIZE};
+    cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, NULL, &err);
 
     // Apply the kernel on the range
+    size_t global_work_size[2] = {MATRIX_SIZE, MATRIX_SIZE};
     clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, NULL);
 
     // Host buffer <- Device buffer
@@ -128,4 +104,24 @@ void printMatrix(int* matrix, int size) {
         }
         printf("\n");
     }
+}
+
+
+char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        printf("[ERROR] Failed to open kernel file: %s\n", filename);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);  
+    *kernel_size = ftell(file);
+    rewind(file);              
+
+    char* kernel_source = (char*)malloc(*kernel_size + 1);
+    fread(kernel_source, 1, *kernel_size, file);
+    kernel_source[*kernel_size] = '\0';
+
+    fclose(file);
+    return kernel_source;
 }
