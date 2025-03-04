@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
 #include <CL/cl.h>
 
 const char* kernel_code =
@@ -17,9 +19,9 @@ const char* kernel_code =
 
 #define MATRIX_SIZE 3
 
-
-void printMatrix(int* matrix, int size);
 char* loadKernelFromFile(const char* filename, size_t* kernel_size);
+void printMatrix(int* matrix, int size);
+int randInt(int min, int max);
 
 
 int main(void) {
@@ -97,16 +99,6 @@ int main(void) {
 }
 
 
-void printMatrix(int* matrix, int size) {
-    for (int i = 0; i < size; i++) {
-        for (int j = 0; j < size; j++) {
-            printf("%4d ", matrix[i * size + j]);
-        }
-        printf("\n");
-    }
-}
-
-
 char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
     FILE* file = fopen(filename, "r");
     if (!file) {
@@ -125,3 +117,19 @@ char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
     fclose(file);
     return kernel_source;
 }
+
+
+void printMatrix(int* matrix, int size) {
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            printf("%4d ", matrix[i * size + j]);
+        }
+        printf("\n");
+    }
+}
+
+
+int randInt(int min, int max) {
+    return min + rand() % (max - min + 1);
+}
+
