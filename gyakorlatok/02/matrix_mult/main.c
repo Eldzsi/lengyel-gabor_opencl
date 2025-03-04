@@ -32,6 +32,12 @@ int main(void) {
     int B[MATRIX_SIZE*MATRIX_SIZE] = {9, 8, 7, 6, 5, 4, 3, 2, 1};
     int C[MATRIX_SIZE*MATRIX_SIZE];
 
+    srand(time(NULL));
+
+    int rand = randInt(1, 10);
+    printf("Random: %d\n", rand);
+    rand = randInt(1, 10);
+
     // OpenCL inicializálás
     cl_platform_id platform_id;
     cl_device_id device_id;
