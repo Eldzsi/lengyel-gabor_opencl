@@ -125,3 +125,4 @@ char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
     fclose(file);
     return kernel_source;
 }
+
