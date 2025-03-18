@@ -4,7 +4,7 @@
 
 #include <CL/cl.h>
 
-#define MAX_SIZE 5000
+#define MAX_SIZE 3000
 
 char* loadKernelFromFile(const char* filename, size_t* kernel_size);
 void printMatrix(int* matrix, int size);
@@ -56,13 +56,32 @@ int main(void) {
     free(kernel_source);
 
     err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        size_t log_size;
+        clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+        char *log = (char *)malloc(log_size);
+        clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
+        printf("[ERROR] Kernel build failed:\n%s\n", log);
+        free(log);
+        return -1;
+    }
+
     cl_kernel kernel = clCreateKernel(program, "matrix_mult", &err);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clCreateKernel failed with error code: %d\n", err);
+        return -1;
+    }
 
     // Create the command queue
     cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, NULL, &err);
 
-    //for (int matrix_size = 100; matrix_size <= 5000; matrix_size += (matrix_size == 100 ? 400 : 500)) {
-    for (int matrix_size = 2; matrix_size <= 4; matrix_size++) {
+    int testSizes[] = {3400, 3500, 3600, 3700, 3800, 3900, 4000, 4100};
+    int numTests = sizeof(testSizes) / sizeof(testSizes[0]);
+
+    //for (int i = 0; i < numTests; i++) {
+    for (int i = numTests-1; i >= 0; i--) {
+
+        int matrix_size = testSizes[i];
         printf("\n--- Matrix size: %dx%d ---\n", matrix_size, matrix_size);
 
         int* A = (int*)malloc(matrix_size * matrix_size * sizeof(int));
@@ -70,8 +89,11 @@ int main(void) {
         int* C = (int*)malloc(matrix_size * matrix_size * sizeof(int));
 
         if (!A || !B || !C) {
-            printf("[ERROR] Memory allocation failed for matrix size %d\n", matrix_size);
-            return -1;
+            printf("[ERROR] Memory allocation failed.\n");
+            free(A);
+            free(B);
+            free(C);
+            continue;
         }
 
         generateMatrix(A, matrix_size, 1, 10);
@@ -81,16 +103,29 @@ int main(void) {
         cl_mem buffer_B = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, matrix_size * matrix_size * sizeof(int), B, &err);
         cl_mem buffer_C = clCreateBuffer(context, CL_MEM_WRITE_ONLY, matrix_size * matrix_size * sizeof(int), NULL, &err);
 
-        // Set kernel arguments
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clCreateBuffer failed: %d\n", err);
+            clReleaseMemObject(buffer_A);
+            clReleaseMemObject(buffer_B);
+            clReleaseMemObject(buffer_C);
+            free(A);
+            free(B);
+            free(C);
+            continue;
+        }
+
         clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer_A);
         clSetKernelArg(kernel, 1, sizeof(cl_mem), &buffer_B);
         clSetKernelArg(kernel, 2, sizeof(cl_mem), &buffer_C);
         clSetKernelArg(kernel, 3, sizeof(int), &matrix_size);
 
-        size_t global_work_size[2] = {matrix_size, matrix_size};
+        size_t global_work_size[2] = {1000, 1000};
 
         clock_t start = clock();
-        clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, global_work_size, NULL, 0, NULL, NULL);
+        err = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, NULL);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clEnqueueNDRangeKernel failed: %d\n", err);
+        }
         clEnqueueReadBuffer(command_queue, buffer_C, CL_TRUE, 0, matrix_size * matrix_size * sizeof(int), C, 0, NULL, NULL);
         clock_t end = clock();
 
@@ -113,6 +148,90 @@ int main(void) {
         free(C);
     }
 
+    /*
+    //for (int matrix_size = 100; matrix_size <= MAX_SIZE; matrix_size += (matrix_size == 100 ? 400 : 500)) {
+    for (int matrix_size = MAX_SIZE; matrix_size <= MAX_SIZE; matrix_size += (matrix_size == 100 ? 400 : 500)) {
+    //for (int matrix_size = 2; matrix_size <= 4; matrix_size++) {
+        printf("\n--- Matrix size: %dx%d ---\n", matrix_size, matrix_size);
+
+        int* A = (int*)malloc(matrix_size * matrix_size * sizeof(int));
+        int* B = (int*)malloc(matrix_size * matrix_size * sizeof(int));
+        int* C = (int*)malloc(matrix_size * matrix_size * sizeof(int));
+
+        if (!A || !B || !C) {
+            printf("[ERROR] Memory allocation failed for matrix size %d\n", matrix_size);
+            return -1;
+        }
+
+        generateMatrix(A, matrix_size, 1, 10);
+        generateMatrix(B, matrix_size, 1, 10);
+
+        cl_mem buffer_A = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, matrix_size * matrix_size * sizeof(int), A, &err);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clCreateBuffer A failed with error code: %d\n", err);
+            return -1;
+        }
+        cl_mem buffer_B = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, matrix_size * matrix_size * sizeof(int), B, &err);
+        cl_mem buffer_C = clCreateBuffer(context, CL_MEM_WRITE_ONLY, matrix_size * matrix_size * sizeof(int), NULL, &err);
+
+        // Set kernel arguments
+        err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer_A);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clSetKernelArg (0) failed with error code: %d\n", err);
+            return -1;
+        }
+
+        err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &buffer_B);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clSetKernelArg (1) failed with error code: %d\n", err);
+            return -1;
+        }
+
+        err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &buffer_C);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clSetKernelArg (2) failed with error code: %d\n", err);
+            return -1;
+        }
+
+        err = clSetKernelArg(kernel, 3, sizeof(int), &matrix_size);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clSetKernelArg (3) failed with error code: %d\n", err);
+            return -1;
+        }
+
+        size_t global_work_size[2] = {matrix_size, matrix_size};
+
+        clock_t start = clock();
+        err = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, NULL);
+        if (err != CL_SUCCESS) {
+            printf("[ERROR] clEnqueueNDRangeKernel failed with error code: %d\n", err);
+            return -1;
+        }
+
+        clEnqueueReadBuffer(command_queue, buffer_C, CL_TRUE, 0, matrix_size * matrix_size * sizeof(int), C, 0, NULL, NULL);
+        clock_t end = clock();
+
+        printf("Execution time: %.3f seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+        if (matrix_size <= 4) {
+            printf("A =\n");
+            printMatrix(A, matrix_size);
+            printf("B =\n");
+            printMatrix(B, matrix_size);
+            printf("A * B =\n");
+            printMatrix(C, matrix_size);
+        }
+
+        clReleaseMemObject(buffer_A);
+        clReleaseMemObject(buffer_B);
+        clReleaseMemObject(buffer_C);
+        free(A);
+        free(B);
+        free(C);
+    }
+
+    */
+
     // Release the resources
     clReleaseKernel(kernel);
     clReleaseProgram(program);
@@ -124,7 +243,7 @@ int main(void) {
 
 
 char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
-    FILE* file = fopen(filename, "r");
+    FILE* file = fopen(filename, "rb");
     if (!file) {
         printf("[ERROR] Failed to open kernel file: %s\n", filename);
         return NULL;
