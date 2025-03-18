@@ -10,6 +10,7 @@ char* loadKernelFromFile(const char* filename, size_t* kernel_size);
 void printMatrix(int* matrix, int size);
 int randInt(int min, int max);
 void generateMatrix(int* matrix, int size, int min, int max);
+void matrixMultiplySequential(int* A, int* B, int* C, int n);
 
 
 int main(void) {
@@ -75,7 +76,7 @@ int main(void) {
     // Create the command queue
     cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, NULL, &err);
 
-    int testSizes[] = {3400, 3500, 3600, 3700, 3800, 3900, 4000, 4100};
+    int testSizes[] = {500, 1000, 1500, 2000};
     int numTests = sizeof(testSizes) / sizeof(testSizes[0]);
 
     //for (int i = 0; i < numTests; i++) {
@@ -119,17 +120,23 @@ int main(void) {
         clSetKernelArg(kernel, 2, sizeof(cl_mem), &buffer_C);
         clSetKernelArg(kernel, 3, sizeof(int), &matrix_size);
 
-        size_t global_work_size[2] = {1000, 1000};
+        size_t global_work_size[2] = {matrix_size, matrix_size};
 
         clock_t start = clock();
+        matrixMultiplySequential(A, B, C, matrix_size);
+        clock_t end = clock();
+        printf("Sequential: %.3f seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+
+        start = clock();
         err = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, NULL);
         if (err != CL_SUCCESS) {
             printf("[ERROR] clEnqueueNDRangeKernel failed: %d\n", err);
         }
         clEnqueueReadBuffer(command_queue, buffer_C, CL_TRUE, 0, matrix_size * matrix_size * sizeof(int), C, 0, NULL, NULL);
-        clock_t end = clock();
+        end = clock();
+        printf("Parallel: %.3f seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-        printf("Execution time: %.3f seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
 
         if (matrix_size <= 4) {
             printf("A =\n");
@@ -280,5 +287,18 @@ int randInt(int min, int max) {
 void generateMatrix(int* matrix, int size, int min, int max) {
     for (int i = 0; i < size * size; i++) {
         matrix[i] = randInt(min, max);
+    }
+}
+
+
+void matrixMultiplySequential(int* A, int* B, int* C, int n) {
+    for (int row = 0; row < n; row++) {
+        for (int col = 0; col < n; col++) {
+            int sum = 0;
+            for (int k = 0; k < n; k++) {
+                sum += A[row * n + k] * B[k * n + col];
+            }
+            C[row * n + col] = sum;
+        }
     }
 }
