@@ -4,13 +4,14 @@
 
 #include <CL/cl.h>
 
-#define MAX_SIZE 3000
+#define MAX_SIZE 10000
 
 char* loadKernelFromFile(const char* filename, size_t* kernel_size);
 void printMatrix(int* matrix, int size);
 int randInt(int min, int max);
 void generateMatrix(int* matrix, int size, int min, int max);
 void matrixMultiplySequential(int* A, int* B, int* C, int n);
+void writeBenchmarkToFile(const char* filename, int matrix_size, double exec_time);
 
 
 int main(void) {
@@ -76,11 +77,16 @@ int main(void) {
     // Create the command queue
     cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, NULL, &err);
 
-    int testSizes[] = {500, 1000, 1500, 2000};
+    int testSizes[] = {1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000};
     int numTests = sizeof(testSizes) / sizeof(testSizes[0]);
 
-    //for (int i = 0; i < numTests; i++) {
-    for (int i = numTests-1; i >= 0; i--) {
+    FILE* file = fopen("sequential_benchmark.txt", "w");
+    if (file) fclose(file);
+    file = fopen("parallel_benchmark.txt", "w");
+    if (file) fclose(file);
+
+    for (int i = 0; i < numTests; i++) {
+    //for (int i = numTests-1; i >= 0; i--) {
 
         int matrix_size = testSizes[i];
         printf("\n--- Matrix size: %dx%d ---\n", matrix_size, matrix_size);
@@ -122,11 +128,15 @@ int main(void) {
 
         size_t global_work_size[2] = {matrix_size, matrix_size};
 
-        clock_t start = clock();
+        clock_t start, end;
+        
+        /*
+        start = clock();
         matrixMultiplySequential(A, B, C, matrix_size);
-        clock_t end = clock();
-        printf("Sequential: %.3f seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
-
+        end = clock();
+        double seq_time = (double)(end - start) / CLOCKS_PER_SEC;
+        printf("Sequential: %.3f seconds\n", seq_time);
+        writeBenchmarkToFile("sequential_benchmark.txt", matrix_size, seq_time);*/
 
         start = clock();
         err = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, NULL);
@@ -135,16 +145,22 @@ int main(void) {
         }
         clEnqueueReadBuffer(command_queue, buffer_C, CL_TRUE, 0, matrix_size * matrix_size * sizeof(int), C, 0, NULL, NULL);
         end = clock();
-        printf("Parallel: %.3f seconds\n", (double)(end - start) / CLOCKS_PER_SEC);
+        double par_time = (double)(end - start) / CLOCKS_PER_SEC;
+        printf("Parallel: %.3f seconds\n", par_time);
+        writeBenchmarkToFile("parallel_benchmark.txt", matrix_size, par_time);
 
 
-        if (matrix_size <= 4) {
+        if (matrix_size <= 10000) {
+
+            printf("%d\n", C[10 * matrix_size + 10]);
+            /*
             printf("A =\n");
             printMatrix(A, matrix_size);
             printf("B =\n");
             printMatrix(B, matrix_size);
             printf("A * B =\n");
             printMatrix(C, matrix_size);
+            */
         }
 
         clReleaseMemObject(buffer_A);
@@ -301,4 +317,16 @@ void matrixMultiplySequential(int* A, int* B, int* C, int n) {
             C[row * n + col] = sum;
         }
     }
+}
+
+
+void writeBenchmarkToFile(const char* filename, int matrix_size, double exec_time) {
+    FILE* file = fopen(filename, "a");
+    if (!file) {
+        printf("[ERROR] Failed to open result file: %s\n", filename);
+        return;
+    }
+
+    fprintf(file, "%dx%d, %.6f\n", matrix_size, matrix_size, exec_time);
+    fclose(file);
 }
