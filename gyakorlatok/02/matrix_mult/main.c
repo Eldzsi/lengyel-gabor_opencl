@@ -1,3 +1,5 @@
+#include "kernel_loader.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -6,7 +8,6 @@
 
 #define MAX_SIZE 10000
 
-char* loadKernelFromFile(const char* filename, size_t* kernel_size);
 void printMatrix(int* matrix, int size);
 int randInt(int min, int max);
 void generateMatrix(int* matrix, int size, int min, int max);
@@ -48,7 +49,7 @@ int main(void) {
 
     // Load kernel from file
     size_t kernel_size;
-    char* kernel_source = loadKernelFromFile("matrix_mult.cl", &kernel_size);
+    char* kernel_source = loadKernelFromFile("kernels/matrix_mult.cl", &kernel_size);
     if (!kernel_source) {
         return -1;
     }
@@ -262,26 +263,6 @@ int main(void) {
     clReleaseContext(context);
 
     return 0;
-}
-
-
-char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
-    FILE* file = fopen(filename, "rb");
-    if (!file) {
-        printf("[ERROR] Failed to open kernel file: %s\n", filename);
-        return NULL;
-    }
-
-    fseek(file, 0, SEEK_END);  
-    *kernel_size = ftell(file);
-    rewind(file);              
-
-    char* kernel_source = (char*)malloc(*kernel_size + 1);
-    fread(kernel_source, 1, *kernel_size, file);
-    kernel_source[*kernel_size] = '\0';
-
-    fclose(file);
-    return kernel_source;
 }
 
 
