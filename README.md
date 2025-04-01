@@ -1,13 +1,13 @@
-# <p style="color:#0078D4;">Párhuzamos eszközök programozása beadandó és gyakorlati feladatok</p>
+# Párhuzamos eszközök programozása beadandó és gyakorlati feladatok
 
 
 **Név:** Lengyel Gábor
 
 **Neptun-kód:** GKIU70
 
-## <p style="color:#0078D4">A repository szerkezete</p>
+## A repository szerkezete
 
-A **gyakorlati feladat** megoldásai a **gyakorlatok/** jegyzékben találhatók. Minden gyakorlat, és azon belül minden feladat külnön jegyzékbe került.
+A **gyakorlati feladatok** megoldásai a **gyakorlatok/** jegyzékben találhatók. Minden gyakorlat, és azon belül minden feladat külön jegyzékbe került.
 
 A **féléves beadandó feladat** megoldása a **feladat/** jegyzékben található.
 
