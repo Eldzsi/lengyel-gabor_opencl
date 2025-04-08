@@ -1,4 +1,7 @@
+#include "file.h"
+
 #include <stdio.h>
+
 
 void write_benchmark_to_file(const char* file_name, int matrix_size, double exec_time) {
     FILE* file = fopen(file_name, "a");

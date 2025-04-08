@@ -7,7 +7,7 @@
 
 
 int main() {
-    int size = 10;
+    int size = 1;
     long long det;
     int* matrix = malloc(size * size * sizeof(int));
     if (matrix == NULL) {

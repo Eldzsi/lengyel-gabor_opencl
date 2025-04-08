@@ -26,7 +26,7 @@ void generate_matrix(int* matrix, int size) {
 
 void calculate_determinant(int* matrix, int size, long long* det) {
     if (size == 1) {
-        *det = matrix[1];
+        *det = matrix[0];
     } else if (size == 2) {
         *det = (matrix[0] * matrix[3]) - (matrix[1] * matrix[2]);
     } else {
@@ -62,5 +62,3 @@ void calculate_determinant(int* matrix, int size, long long* det) {
         }
     }
 }
-
-
