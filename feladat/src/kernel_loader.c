@@ -4,21 +4,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-char* loadKernelFromFile(const char* filename, size_t* kernel_size) {
-    FILE* file = fopen(filename, "rb");
-    if (!file) {
-        printf("[ERROR] Failed to open kernel file: %s\n", filename);
+
+char* load_kernel_source(const char* const path, int* error_code) {
+    FILE* source_file;
+    char* source_code;
+    int file_size;
+
+    source_file = fopen(path, "rb");
+    if (source_file == NULL) {
+        *error_code = -1;
         return NULL;
     }
 
-    fseek(file, 0, SEEK_END);  
-    *kernel_size = ftell(file);
-    rewind(file);              
+    fseek(source_file, 0, SEEK_END);
+    file_size = ftell(source_file);
+    rewind(source_file);
+    source_code = (char*)malloc(file_size + 1);
+    fread(source_code, sizeof(char), file_size, source_file);
+    source_code[file_size] = 0;
 
-    char* kernel_source = (char*)malloc(*kernel_size + 1);
-    fread(kernel_source, 1, *kernel_size, file);
-    kernel_source[*kernel_size] = '\0';
-
-    fclose(file);
-    return kernel_source;
+    *error_code = 0;
+    return source_code;
 }

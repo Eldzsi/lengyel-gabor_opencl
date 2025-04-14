@@ -1,2 +1,2 @@
-kernel void calculate_determinant(global int* matrix, global int n, global long long* det) {
+__kernel void sample_kernel(__global int* matrix, int n, __global long long* det) {
 }

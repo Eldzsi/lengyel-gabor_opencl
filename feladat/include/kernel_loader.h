@@ -5,6 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-char* loadKernelFromFile(const char* filename, size_t* kernel_size);
+char* load_kernel_source(const char* const path, int* error_code);
 
 #endif
