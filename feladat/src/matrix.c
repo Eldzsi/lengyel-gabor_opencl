@@ -24,7 +24,7 @@ void generate_matrix(int* matrix, int size) {
 }
 
 
-void calculate_determinant(int* matrix, int size, long long* det) {
+void calculate_determinant(int* matrix, int size, long* det) {
     if (size == 1) {
         *det = matrix[0];
     } else if (size == 2) {
@@ -51,7 +51,7 @@ void calculate_determinant(int* matrix, int size, long long* det) {
                 }
             }
 
-            long long subdet;
+            long subdet;
             calculate_determinant(submatrix, size - 1, &subdet);
 
             *det += sign * matrix[col] * subdet;

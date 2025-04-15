@@ -7,156 +7,179 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
 #include <CL/cl.h>
 
-const int SAMPLE_SIZE = 2;
+const int SAMPLE_SIZE = 4;
 
 int main() {
-    long long det;
-    int* matrix = malloc(SAMPLE_SIZE * SAMPLE_SIZE * sizeof(int));
+    long det;
+    /* int* matrix = malloc(SAMPLE_SIZE * SAMPLE_SIZE * sizeof(int));
     if (matrix == NULL) {
-        printf("[ERROR] Failed to allocate memory!");
+        printf("[ERROR] Failed to allocate memory!\n");
         return -1;
-    }
+    } */
+
     clock_t start, end;
 
-    generate_matrix(matrix, SAMPLE_SIZE);
+    //generate_matrix(matrix, SAMPLE_SIZE);
 
+    int matrix[16] = {2, 8, 7, 10, 0, 3, 0, 3, 10, 5, 7, 9, 7, 2, 4, 5};
     if (SAMPLE_SIZE < 10) {
         printf("\nMatrix:\n");
         print_matrix(matrix, SAMPLE_SIZE);
     }
 
-    int i;
-    cl_int err;
-    int error_code;
+    int num_submatrices = 4;
+    int submatrix_size = 3;
+    int* submatrices = malloc(num_submatrices * submatrix_size * submatrix_size * sizeof(int));
 
+    for (int col = 0; col < SAMPLE_SIZE; col++) {
+        int index = 0;
+        for (int i = 1; i < SAMPLE_SIZE; i++) {
+            for (int j = 0; j < SAMPLE_SIZE; j++) {
+                if (j == col) continue;
+                submatrices[col * 9 + index++] = matrix[i * SAMPLE_SIZE + j];
+            }
+        }
+    }
+
+    printf("\nGenerated submatrices:\n");
+    for (int i = 0; i < num_submatrices * submatrix_size * submatrix_size; i++) {
+        printf("%4d ", submatrices[i]);
+        if ((i + 1) % 3 == 0) printf("\n");
+        if ((i + 1) % 9 == 0) printf("\n");
+    }
+
+    cl_int err;
+    
     // Get platform
     cl_uint n_platforms;
-	cl_platform_id platform_id;
+    cl_platform_id platform_id;
     err = clGetPlatformIDs(1, &platform_id, &n_platforms);
-	if (err != CL_SUCCESS) {
-		printf("[ERROR] Error calling clGetPlatformIDs. Error code: %d\n", err);
-		return 0;
-	}
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clGetPlatformIDs failed: %d\n", err);
+        return 1;
+    }
 
     // Get device
-	cl_device_id device_id;
-	cl_uint n_devices;
-	err = clGetDeviceIDs(
-		platform_id,
-		CL_DEVICE_TYPE_GPU,
-		1,
-		&device_id,
-		&n_devices
-	);
-	if (err != CL_SUCCESS) {
-		printf("[ERROR] Error calling clGetDeviceIDs. Error code: %d\n", err);
-		return 0;
-	}
+    cl_device_id device_id;
+    cl_uint n_devices;
+    err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clGetDeviceIDs failed: %d\n", err);
+        return 1;
+    }
 
-    // Create OpenCL context
-    cl_context context = clCreateContext(NULL, n_devices, &device_id, NULL, NULL, NULL);
+    // Create context
+    cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clCreateContext failed: %d\n", err);
+        return 1;
+    }
 
-    // Build the program
+    // Load and build kernel
+    int error_code;
     const char* kernel_code = load_kernel_source("kernel/sample.cl", &error_code);
     if (error_code != 0) {
-        printf("Source code loading error!\n");
-        return 0;
+        printf("[ERROR] Kernel source loading failed.\n");
+        return 1;
     }
 
-    cl_program program = clCreateProgramWithSource(context, 1, &kernel_code, NULL, NULL);
-    err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    cl_program program = clCreateProgramWithSource(context, 1, &kernel_code, NULL, &err);
     if (err != CL_SUCCESS) {
-        printf("Build error! Code: %d\n", err);
-        return 0;
+        printf("[ERROR] clCreateProgramWithSource failed: %d\n", err);
+        return 1;
     }
 
-    cl_kernel kernel = clCreateKernel(program, "sample_kernel", NULL);
+    err = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        size_t log_size;
+        clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+        char* build_log = malloc(log_size);
+        clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+        printf("Build log:\n%s\n", build_log);
+        free(build_log);
+        return 1;
+    }
+    printf("OpenCL kernel compiled successfully.\n");
 
-    // Create the host buffer and initialize it
-    int* host_buffer = (int*)malloc(SAMPLE_SIZE * sizeof(int));
-    for (i = 0; i < SAMPLE_SIZE; ++i) {
-        host_buffer[i] = i;
+    // Create buffers
+    cl_mem submatrix_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, num_submatrices * 9 * sizeof(int), submatrices, &err);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clCreateBuffer (submatrix_buffer) failed: %d\n", err);
+        return 1;
     }
 
-    // Create the device buffer
-    cl_mem device_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, SAMPLE_SIZE * sizeof(int), NULL, NULL);
-
-    // Set kernel arguments
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&device_buffer);
-    clSetKernelArg(kernel, 1, sizeof(int), (void*)&SAMPLE_SIZE);
-
-    // Create the command queue
-    const cl_queue_properties props[] = {0};
-    cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, props, &err);
-
-    // Host buffer -> Device buffer
-    clEnqueueWriteBuffer(
-        command_queue,
-        device_buffer,
-        CL_FALSE,
-        0,
-        SAMPLE_SIZE * sizeof(int),
-        host_buffer,
-        0,
-        NULL,
-        NULL
-    );
-
-    // Size specification
-    size_t local_work_size = 256;
-    size_t n_work_groups = (SAMPLE_SIZE + local_work_size + 1) / local_work_size;
-    size_t global_work_size = n_work_groups * local_work_size;
-
-    // Apply the kernel on the range
-    clEnqueueNDRangeKernel(
-        command_queue,
-        kernel,
-        1,
-        NULL,
-        &global_work_size,
-        &local_work_size,
-        0,
-        NULL,
-        NULL
-    );
-
-    // Host buffer <- Device buffer
-    clEnqueueReadBuffer(
-        command_queue,
-        device_buffer,
-        CL_TRUE,
-        0,
-        SAMPLE_SIZE * sizeof(int),
-        host_buffer,
-        0,
-        NULL,
-        NULL
-    );
-
-    for (i = 0; i < SAMPLE_SIZE; ++i) {
-        //printf("[%d] = %d, ", i, host_buffer[i]);
+    cl_mem result_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, num_submatrices * sizeof(long), NULL, &err);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clCreateBuffer (result_buffer) failed: %d\n", err);
+        return 1;
     }
+
+    cl_kernel kernel = clCreateKernel(program, "determinant_kernel", &err);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clCreateKernel failed: %d\n", err);
+        return 1;
+    }
+
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &submatrix_buffer);
+    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &result_buffer);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clSetKernelArg failed: %d\n", err);
+        return 1;
+    }
+
+    cl_command_queue queue = clCreateCommandQueueWithProperties(context, device_id, 0, &err);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clCreateCommandQueueWithProperties failed: %d\n", err);
+        return 1;
+    }
+
+    // Launch kernel
+    size_t global_work_size = num_submatrices;
+    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_work_size, NULL, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clEnqueueNDRangeKernel failed: %d\n", err);
+        return 1;
+    }
+
+    long submatrix_results[4];
+    err = clEnqueueReadBuffer(queue, result_buffer, CL_TRUE, 0, sizeof(submatrix_results), submatrix_results, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        printf("[ERROR] clEnqueueReadBuffer failed: %d\n", err);
+        return 1;
+    }
+
+    clFinish(queue);
 
     start = clock();
     calculate_determinant(matrix, SAMPLE_SIZE, &det);
     end = clock();
-    printf("\nDet: %lld", det);
+    printf("\nDet (CPU): %ld", det);
 
     double exe_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("\nExecution time: %.4f s\n", exe_time);
     write_benchmark_to_file("sequential_benchmark.txt", SAMPLE_SIZE, exe_time);
 
-    // Release the resources
+    det = 0;
+    int sign = 1;
+    for (int i = 0; i < 4; i++) {
+        printf("\n%d: %ld", i+1, submatrix_results[i]);
+        det += sign * matrix[i] * submatrix_results[i];
+        sign = -sign;
+    }
+    printf("\nDet (OpenCL): %ld\n", det);
+
+    // Cleanup
     clReleaseKernel(kernel);
     clReleaseProgram(program);
+    clReleaseMemObject(submatrix_buffer);
+    clReleaseMemObject(result_buffer);
+    clReleaseCommandQueue(queue);
     clReleaseContext(context);
-    clReleaseDevice(device_id);
 
-    free(host_buffer);
     free(matrix);
+    free(submatrices);
 
     return 0;
 }
