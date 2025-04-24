@@ -1,29 +1,33 @@
 #define CL_TARGET_OPENCL_VERSION 220
 
+
 #include "matrix.h"
 #include "file.h"
 #include "kernel_loader.h"
 
+#include <CL/cl.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <CL/cl.h>
+
 
 const int SAMPLE_SIZE = 4;
 
+
 int main() {
     long det;
-    /* int* matrix = malloc(SAMPLE_SIZE * SAMPLE_SIZE * sizeof(int));
+    int* matrix = malloc(SAMPLE_SIZE * SAMPLE_SIZE * sizeof(int));
     if (matrix == NULL) {
         printf("[ERROR] Failed to allocate memory!\n");
         return -1;
-    } */
+    }
 
     clock_t start, end;
 
-    //generate_matrix(matrix, SAMPLE_SIZE);
+    generate_matrix(matrix, SAMPLE_SIZE);
 
-    int matrix[16] = {2, 8, 7, 10, 0, 3, 0, 3, 10, 5, 7, 9, 7, 2, 4, 5};
+    //int matrix[16] = {2, 8, 7, 10, 0, 3, 0, 3, 10, 5, 7, 9, 7, 2, 4, 5};
     if (SAMPLE_SIZE < 10) {
         printf("\nMatrix:\n");
         print_matrix(matrix, SAMPLE_SIZE);
@@ -37,8 +41,10 @@ int main() {
         int index = 0;
         for (int i = 1; i < SAMPLE_SIZE; i++) {
             for (int j = 0; j < SAMPLE_SIZE; j++) {
-                if (j == col) continue;
-                submatrices[col * 9 + index++] = matrix[i * SAMPLE_SIZE + j];
+                if (j != col) {
+                    submatrices[col * 9 + index] = matrix[i * SAMPLE_SIZE + j];
+                    index++;
+                }
             }
         }
     }
@@ -143,7 +149,7 @@ int main() {
         return 1;
     }
 
-    long submatrix_results[4];
+    int submatrix_results[4];
     err = clEnqueueReadBuffer(queue, result_buffer, CL_TRUE, 0, sizeof(submatrix_results), submatrix_results, 0, NULL, NULL);
     if (err != CL_SUCCESS) {
         printf("[ERROR] clEnqueueReadBuffer failed: %d\n", err);
@@ -164,7 +170,7 @@ int main() {
     det = 0;
     int sign = 1;
     for (int i = 0; i < 4; i++) {
-        printf("\n%d: %ld", i+1, submatrix_results[i]);
+        printf("\n%d: %d", i+1, submatrix_results[i]);
         det += sign * matrix[i] * submatrix_results[i];
         sign = -sign;
     }
