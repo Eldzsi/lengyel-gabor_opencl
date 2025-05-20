@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 
 const int SAMPLE_SIZE = 4;
@@ -22,6 +24,8 @@ int main() {
         printf("[ERROR] Failed to allocate memory!\n");
         return -1;
     }
+
+    int result = mkdir("outputs/", 0777);
 
     clock_t start, end;
 
@@ -165,7 +169,7 @@ int main() {
 
     double exe_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("\nExecution time: %.4f s\n", exe_time);
-    write_benchmark_to_file("sequential_benchmark.txt", SAMPLE_SIZE, exe_time);
+    write_benchmark_to_file("outputs/sequential_benchmark.txt", SAMPLE_SIZE, exe_time);
 
     det = 0;
     int sign = 1;
