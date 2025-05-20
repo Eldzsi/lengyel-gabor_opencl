@@ -13,6 +13,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#ifdef _WIN32
+    #include <direct.h>
+    #define mkdir(path, mode) _mkdir(path)
+#else
+    #include <sys/stat.h>
+    #include <sys/types.h>
+#endif
+
 
 const int SAMPLE_SIZE = 4;
 
@@ -163,7 +171,7 @@ int main() {
     clFinish(queue);
 
     start = clock();
-    calculate_determinant(matrix, SAMPLE_SIZE, &det);
+    calculate_determinant_recursive(matrix, SAMPLE_SIZE, &det);
     end = clock();
     printf("\nDet (CPU): %ld", det);
 
