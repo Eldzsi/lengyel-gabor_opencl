@@ -46,7 +46,7 @@ int main() {
     }
 
     int num_submatrices = 4;
-    int submatrix_size = 3;
+     int submatrix_size = 3;
     int* submatrices = malloc(num_submatrices * submatrix_size * submatrix_size * sizeof(int));
 
     for (int col = 0; col < SAMPLE_SIZE; col++) {
@@ -60,15 +60,16 @@ int main() {
             }
         }
     }
+    
 
-    printf("\nGenerated submatrices:\n");
+   /*  printf("\nGenerated submatrices:\n");
     for (int i = 0; i < num_submatrices * submatrix_size * submatrix_size; i++) {
         printf("%4d ", submatrices[i]);
         if ((i + 1) % 3 == 0) printf("\n");
         if ((i + 1) % 9 == 0) printf("\n");
-    }
+    } */
 
-    cl_int err;
+    /* cl_int err;
     
     // Get platform
     cl_uint n_platforms;
@@ -145,9 +146,9 @@ int main() {
     if (err != CL_SUCCESS) {
         printf("[ERROR] clSetKernelArg failed: %d\n", err);
         return 1;
-    }
+    } */
 
-    cl_command_queue queue = clCreateCommandQueueWithProperties(context, device_id, 0, &err);
+    /* cl_command_queue queue = clCreateCommandQueueWithProperties(context, device_id, 0, &err);
     if (err != CL_SUCCESS) {
         printf("[ERROR] clCreateCommandQueueWithProperties failed: %d\n", err);
         return 1;
@@ -168,7 +169,7 @@ int main() {
         return 1;
     }
 
-    clFinish(queue);
+    clFinish(queue); */
 
     start = clock();
     calculate_determinant_recursive(matrix, SAMPLE_SIZE, &det);
@@ -177,18 +178,23 @@ int main() {
 
     double exe_time = (double)(end - start) / CLOCKS_PER_SEC;
     printf("\nExecution time: %.4f s\n", exe_time);
-    write_benchmark_to_file("outputs/sequential_benchmark.txt", SAMPLE_SIZE, exe_time);
+    //write_benchmark_to_file("outputs/sequential_benchmark.txt", SAMPLE_SIZE, exe_time);
 
-    det = 0;
+    start = clock();
+    long det2 = calculate_determinant_iterative(matrix, SAMPLE_SIZE);
+    end = clock();
+    printf("\nDet (CPU - Iterative): %ld", det2);
+
+    /* det = 0;
     int sign = 1;
     for (int i = 0; i < 4; i++) {
         printf("\n%d: %d", i+1, submatrix_results[i]);
         det += sign * matrix[i] * submatrix_results[i];
         sign = -sign;
     }
-    printf("\nDet (OpenCL): %ld\n", det);
+    printf("\nDet (OpenCL): %ld\n", det); */
 
-    // Cleanup
+    /* // Cleanup
     clReleaseKernel(kernel);
     clReleaseProgram(program);
     clReleaseMemObject(submatrix_buffer);
@@ -196,8 +202,9 @@ int main() {
     clReleaseCommandQueue(queue);
     clReleaseContext(context);
 
+    free(submatrices); */
+
     free(matrix);
-    free(submatrices);
 
     return 0;
 }
