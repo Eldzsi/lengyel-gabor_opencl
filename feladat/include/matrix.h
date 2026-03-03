@@ -5,6 +5,6 @@ void generate_matrix(float* matrix, int size);
 
 void print_matrix(float* matrix, int size);
 
-void calculate_determinant_gauss(float* matrix, int size, double* out_mantissa, long long* out_exponent, int* out_sign);
+void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, long long* out_exponent, int* out_sign);
 
 #endif

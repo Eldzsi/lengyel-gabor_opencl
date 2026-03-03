@@ -8,7 +8,7 @@
 void generate_matrix(float* matrix, int size) {
     srand(time(NULL));
     for (int i = 0; i < size * size; i++) {
-        matrix[i] = (float)(rand() % 11);
+        matrix[i] = (float)(rand() % 10); 
     }
 }
 
@@ -21,7 +21,7 @@ void print_matrix(float* matrix, int size) {
     }
 }
 
-void calculate_determinant_gauss(float* matrix, int size, double* out_mantissa, long long* out_exponent, int* out_sign) {
+void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, long long* out_exponent, int* out_sign) {
     float* temp = (float*)malloc(size * size * sizeof(float));
 
     if (temp == NULL) {
@@ -35,7 +35,7 @@ void calculate_determinant_gauss(float* matrix, int size, double* out_mantissa, 
         temp[i] = matrix[i];
     }
 
-    double mantissa = 1.0;
+    float mantissa = 1.0;
     long long exponent = 0;
     int sign = 1;
 
@@ -49,7 +49,7 @@ void calculate_determinant_gauss(float* matrix, int size, double* out_mantissa, 
             }
         }
         
-        double value = pivot;
+        float value = pivot;
         if (value < 0) {
             sign = -sign;
             value = -value;
