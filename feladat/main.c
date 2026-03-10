@@ -23,8 +23,10 @@ int main(int argc, char* argv[]) {
         MATRIX_SIZE = atoi(argv[1]);
     }
 
-    float* matrix = malloc(MATRIX_SIZE * MATRIX_SIZE * sizeof(float));
-    if (matrix == NULL) return -1;
+    float* matrix_gpu = malloc(MATRIX_SIZE * MATRIX_SIZE * sizeof(float));
+    float* matrix_cpu = malloc(MATRIX_SIZE * MATRIX_SIZE * sizeof(float));
+
+    if (matrix_gpu == NULL || matrix_cpu == NULL) return -1;
 
     #ifdef _WIN32
         _mkdir("outputs");
@@ -32,13 +34,16 @@ int main(int argc, char* argv[]) {
         mkdir("outputs", 0777);
     #endif
 
-    generate_matrix(matrix, MATRIX_SIZE);
+    generate_matrix(matrix_gpu, MATRIX_SIZE);
+    for (int i = 0; i < MATRIX_SIZE * MATRIX_SIZE; i++) {
+        matrix_cpu[i] = matrix_gpu[i];
+    }
 
     if (MATRIX_SIZE <= 10) {
         printf("\nGenerated Matrix (%dx%d):\n", MATRIX_SIZE, MATRIX_SIZE);
         for (int i = 0; i < MATRIX_SIZE; i++) {
             for (int j = 0; j < MATRIX_SIZE; j++) {
-                printf("%2.0f ", matrix[i*MATRIX_SIZE+j]);
+                printf("%2.0f ", matrix_gpu[i*MATRIX_SIZE+j]);
             }
             printf("\n");
         }
@@ -50,7 +55,7 @@ int main(int argc, char* argv[]) {
     long long cpu_exponent;
     int cpu_sign;
     
-    calculate_determinant_gauss(matrix, MATRIX_SIZE, &cpu_mantissa, &cpu_exponent, &cpu_sign);
+    calculate_determinant_gauss(matrix_cpu, MATRIX_SIZE, &cpu_mantissa, &cpu_exponent, &cpu_sign);
     
     clock_t end_cpu = clock();
     float cpu_time = (float)(end_cpu - start_cpu) / CLOCKS_PER_SEC;
@@ -79,7 +84,7 @@ int main(int argc, char* argv[]) {
 
     clock_t start_gpu = clock();
     
-    calculate_determinant_gauss_opencl(matrix, MATRIX_SIZE, &gpu_mantissa, &gpu_exponent, &gpu_sign, &gpu_time_write, &gpu_time_calc, &gpu_time_read);
+    calculate_determinant_gauss_opencl(matrix_gpu, MATRIX_SIZE, &gpu_mantissa, &gpu_exponent, &gpu_sign, &gpu_time_write, &gpu_time_calc, &gpu_time_read);
     
     clock_t end_gpu = clock();
     float gpu_time = (float)(end_gpu - start_gpu) / CLOCKS_PER_SEC;
@@ -95,6 +100,18 @@ int main(int argc, char* argv[]) {
     printf("GPU -> CPU: %.4f s\n", gpu_time_read);
     printf("Total execution time (GPU): %.4f s\n", gpu_time);
     printf("===================================\n");
+    
+    printf("\nDiagonal comparison):\n");
+    printf("%-5s | %-15s | %-15s | %-10s\n", "Index", "CPU Diagonal", "GPU Diagonal", "Diff");
+    printf("------------------------------------------------------------\n");
+
+    int limit = (MATRIX_SIZE < 10) ? MATRIX_SIZE : 10;
+    for (int i = 0; i < limit; i++) {
+        float c_val = matrix_cpu[i * MATRIX_SIZE + i];
+        float g_val = matrix_gpu[i * MATRIX_SIZE + i];
+        printf("%-5d | %-15.6f | %-15.6f | %-10.6e\n", i, c_val, g_val, fabs(c_val - g_val));
+    }
+    printf("===================================\n");
 
     if (cpu_mantissa != 0.0) {
         double gpu_part = (double)(gpu_sign * gpu_mantissa);
@@ -109,6 +126,7 @@ int main(int argc, char* argv[]) {
 
     write_benchmark_to_file("outputs/benchmark_gpu.txt", MATRIX_SIZE, gpu_time);
 
-    free(matrix);
+    free(matrix_gpu);
+    free(matrix_cpu);
     return 0;
 }

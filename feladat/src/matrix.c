@@ -28,30 +28,15 @@ void print_matrix(float* matrix, int size) {
 }
 
 void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, long long* out_exponent, int* out_sign) {
-    float* temp = (float*)malloc(size * size * sizeof(float));
-
-    if (temp == NULL) {
-        *out_mantissa = 0.0;
-        *out_exponent = 0;
-        *out_sign = 1;
-        return;
-    }
-    
-    for (int i = 0; i < size * size; i++) {
-        temp[i] = matrix[i];
-    }
-
     int sign = 1;
 
-    // 1. EGYSÉGESÍTÉS: Csak size - 1-ig megyünk, mint a GPU
     for (int k = 0; k < size - 1; k++) {
-
         int max_row = k;
-        float max_val = fabs(temp[k * size + k]);
+        float max_val = fabs(matrix[k * size + k]);
 
         for (int i = k + 1; i < size; i++) {
-            if (fabs(temp[i * size + k]) > max_val) {
-                max_val = fabs(temp[i * size + k]);
+            if (fabs(matrix[i * size + k]) > max_val) {
+                max_val = fabs(matrix[i * size + k]);
                 max_row = i;
             }
         }
@@ -60,36 +45,36 @@ void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, l
             *out_mantissa = 0.0;
             *out_exponent = 0;
             *out_sign = 1;
-            free(temp);
             return;
         }
 
         if (max_row != k) {
             for (int j = 0; j < size; j++) {
-                float tmp_val = temp[k * size + j];
-                temp[k * size + j] = temp[max_row * size + j];
-                temp[max_row * size + j] = tmp_val;
+                float tmp_val = matrix[k * size + j];
+                matrix[k * size + j] = matrix[max_row * size + j];
+                matrix[max_row * size + j] = tmp_val;
             }
             sign = -sign; 
         }
 
-        float pivot = temp[k * size + k];
+        float pivot = matrix[k * size + k];
     
         for (int i = k + 1; i < size; i++) {
-            float factor = temp[i * size + k] / pivot;
-            // 2. EGYSÉGESÍTÉS: A GPU-hoz hasonlóan átugorjuk a felesleges oszlopot (j = k + 1)
+            float factor = matrix[i * size + k] / pivot;
+            
             for (int j = k + 1; j < size; j++) {
-                temp[i * size + j] -= factor * temp[k * size + j];
+                matrix[i * size + j] -= factor * matrix[k * size + j];
             }
+            
+            matrix[i * size + k] = 0.0f;
         }
     }
 
-    // 3. EGYSÉGESÍTÉS: A determináns utólagos kiszámítása a főátlóból, mint a GPU-nál
     float mantissa = 1.0;
     long long exponent = 0;
 
     for (int i = 0; i < size; i++) {
-        float val = temp[i * size + i];
+        float val = matrix[i * size + i];
 
         if (fabs(val) < 1e-12) {
             mantissa = 0.0;
@@ -114,8 +99,6 @@ void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, l
         }
     }
 
-    free(temp);
-    
     *out_mantissa = mantissa;
     *out_exponent = exponent;
     *out_sign = sign;
@@ -251,15 +234,4 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
     *out_mantissa = mantissa;
     *out_exponent = exponent;
     *out_sign = sign;
-
-    free(kernel_events);
-    clReleaseEvent(write_event);
-    clReleaseEvent(read_event);
-    clReleaseMemObject(gpu_matrix);
-    clReleaseMemObject(gpu_sign);
-    clReleaseKernel(kernel_pivot);
-    clReleaseKernel(kernel_gauss);
-    clReleaseProgram(program);
-    clReleaseCommandQueue(queue);
-    clReleaseContext(context);
 }
