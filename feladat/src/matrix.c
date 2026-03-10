@@ -41,11 +41,10 @@ void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, l
         temp[i] = matrix[i];
     }
 
-    float mantissa = 1.0;
-    long long exponent = 0;
     int sign = 1;
 
-    for (int k = 0; k < size; k++) {
+    // 1. EGYSÉGESÍTÉS: Csak size - 1-ig megyünk, mint a GPU
+    for (int k = 0; k < size - 1; k++) {
 
         int max_row = k;
         float max_val = fabs(temp[k * size + k]);
@@ -61,6 +60,7 @@ void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, l
             *out_mantissa = 0.0;
             *out_exponent = 0;
             *out_sign = 1;
+            free(temp);
             return;
         }
 
@@ -77,18 +77,32 @@ void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, l
     
         for (int i = k + 1; i < size; i++) {
             float factor = temp[i * size + k] / pivot;
-            for (int j = k; j < size; j++) {
+            // 2. EGYSÉGESÍTÉS: A GPU-hoz hasonlóan átugorjuk a felesleges oszlopot (j = k + 1)
+            for (int j = k + 1; j < size; j++) {
                 temp[i * size + j] -= factor * temp[k * size + j];
             }
         }
-        
-        float value = pivot;
-        if (value < 0) {
-            sign = -sign;
-            value = -value;
+    }
+
+    // 3. EGYSÉGESÍTÉS: A determináns utólagos kiszámítása a főátlóból, mint a GPU-nál
+    float mantissa = 1.0;
+    long long exponent = 0;
+
+    for (int i = 0; i < size; i++) {
+        float val = temp[i * size + i];
+
+        if (fabs(val) < 1e-12) {
+            mantissa = 0.0;
+            exponent = 0; 
+            break;
         }
 
-        mantissa *= value;
+        if (val < 0) {
+            sign = -sign;
+            val = -val;
+        }
+
+        mantissa *= val;
 
         while (mantissa >= 10.0) {
             mantissa /= 10.0;
@@ -201,6 +215,12 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
 
     for (int i = 0; i < size; i++) {
         float val = matrix[i * size + i];
+
+        if (fabs(val) < 1e-12) {
+            mantissa = 0.0;
+            exponent = 0; 
+            break;
+        }
 
         if (val == 0.0) {
             mantissa = 0.0;
