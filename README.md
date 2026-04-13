@@ -1,6 +1,7 @@
 # Párhuzamos eszközök programozása - OpenCL Mátrix Determináns
 
 **Név:** Lengyel Gábor
+
 **Neptun-kód:** GKIU70
 
 ## A projekt célja
