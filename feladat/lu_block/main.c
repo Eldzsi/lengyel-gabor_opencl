@@ -18,6 +18,8 @@
 
 int MATRIX_SIZE = 1000;
 
+#define MAX_MATRIX_SIZE_CPU 10
+
 int main(int argc, char* argv[]) {
     if (argc > 1) {
         MATRIX_SIZE = atoi(argv[1]);
@@ -26,7 +28,9 @@ int main(int argc, char* argv[]) {
     float* matrix_gpu = malloc(MATRIX_SIZE * MATRIX_SIZE * sizeof(float));
     float* matrix_cpu = malloc(MATRIX_SIZE * MATRIX_SIZE * sizeof(float));
 
-    if (matrix_gpu == NULL || matrix_cpu == NULL) return -1;
+    if (matrix_gpu == NULL || matrix_cpu == NULL) {
+        return -1;
+    }
 
     #ifdef _WIN32
         _mkdir("outputs");
@@ -49,29 +53,34 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    clock_t start_cpu = clock();
-    
-    float cpu_mantissa;
-    long long cpu_exponent;
-    int cpu_sign;
-    
-    calculate_determinant_gauss(matrix_cpu, MATRIX_SIZE, &cpu_mantissa, &cpu_exponent, &cpu_sign);
-    
-    clock_t end_cpu = clock();
-    float cpu_time = (float)(end_cpu - start_cpu) / CLOCKS_PER_SEC;
+    float cpu_mantissa = 0.0;
+    long long cpu_exponent = 0;
+    int cpu_sign = 1;
 
     printf("\n===================================\n");
     printf("CPU\n");
     printf("-----------------------------------\n");
-    printf("Execution time (CPU): %.4f s\n", cpu_time);
-    
-    if (cpu_mantissa == 0.0) {
-        printf("Determinant (CPU): 0\n");
+
+    if (MATRIX_SIZE <= MAX_MATRIX_SIZE_CPU) {
+        clock_t start_cpu = clock();
+        
+        calculate_determinant_gauss(matrix_cpu, MATRIX_SIZE, &cpu_mantissa, &cpu_exponent, &cpu_sign);
+        
+        clock_t end_cpu = clock();
+        float cpu_time = (float)(end_cpu - start_cpu) / CLOCKS_PER_SEC;
+
+        printf("Execution time (CPU): %.4f s\n", cpu_time);
+        
+        if (cpu_mantissa == 0.0) {
+            printf("Determinant (CPU): 0\n");
+        } else {
+            printf("Determinant (CPU): %s%.4f * 10^%lld\n", cpu_sign < 0 ? "-" : "", cpu_mantissa, cpu_exponent);
+        }
+        
+        write_benchmark_to_file("outputs/benchmark_cpu.txt", MATRIX_SIZE, cpu_time);
     } else {
-        printf("Determinant (CPU): %s%.4f * 10^%lld\n", cpu_sign < 0 ? "-" : "", cpu_mantissa, cpu_exponent);
+        printf("Skipped (Matrix size > %d)\n", MAX_MATRIX_SIZE_CPU);
     }
-    
-    write_benchmark_to_file("outputs/benchmark_cpu.txt", MATRIX_SIZE, cpu_time);
 
     printf("===================================\n");
     printf("GPU\n");
@@ -101,32 +110,35 @@ int main(int argc, char* argv[]) {
     printf("Total execution time (GPU): %.4f s\n", gpu_time);
     printf("===================================\n");
     
-    printf("\nDiagonal comparison):\n");
-    printf("%-5s | %-15s | %-15s | %-10s\n", "Index", "CPU Diagonal", "GPU Diagonal", "Diff");
-    printf("------------------------------------------------------------\n");
+    if (MATRIX_SIZE <= MAX_MATRIX_SIZE_CPU) {
+        printf("\nDiagonal comparison:\n");
+        printf("%-5s | %-15s | %-15s | %-10s\n", "Index", "CPU Diagonal", "GPU Diagonal", "Diff");
+        printf("------------------------------------------------------------\n");
 
-    int limit = (MATRIX_SIZE < 10) ? MATRIX_SIZE : 10;
-    for (int i = 0; i < limit; i++) {
-        float c_val = matrix_cpu[i * MATRIX_SIZE + i];
-        float g_val = matrix_gpu[i * MATRIX_SIZE + i];
-        printf("%-5d | %-15.6f | %-15.6f | %-10.6e\n", i, c_val, g_val, fabs(c_val - g_val));
-    }
-    printf("===================================\n");
-
-    if (cpu_mantissa != 0.0) {
-        double gpu_part = (double)(gpu_sign * gpu_mantissa);
-        double cpu_part = (double)(cpu_sign * cpu_mantissa);
-        
-        double ratio = (gpu_part / cpu_part) * pow(10.0, (double)(gpu_exponent - cpu_exponent));
-        double error_percent = fabs(ratio - 1.0) * 100.0;
-        
-        printf("Relative Error: %.6f %%\n", error_percent);
+        int limit = (MATRIX_SIZE < 10) ? MATRIX_SIZE : 10;
+        for (int i = 0; i < limit; i++) {
+            float c_val = matrix_cpu[i * MATRIX_SIZE + i];
+            float g_val = matrix_gpu[i * MATRIX_SIZE + i];
+            printf("%-5d | %-15.6f | %-15.6f | %-10.6e\n", i, c_val, g_val, fabs(c_val - g_val));
+        }
         printf("===================================\n");
+
+        if (cpu_mantissa != 0.0) {
+            double gpu_part = (double)(gpu_sign * gpu_mantissa);
+            double cpu_part = (double)(cpu_sign * cpu_mantissa);
+            
+            double ratio = (gpu_part / cpu_part) * pow(10.0, (double)(gpu_exponent - cpu_exponent));
+            double error_percent = fabs(ratio - 1.0) * 100.0;
+            
+            printf("Relative Error: %.6f %%\n", error_percent);
+            printf("===================================\n");
+        }
     }
 
     write_benchmark_to_file("outputs/benchmark_gpu.txt", MATRIX_SIZE, gpu_time);
 
     free(matrix_gpu);
     free(matrix_cpu);
+    
     return 0;
 }

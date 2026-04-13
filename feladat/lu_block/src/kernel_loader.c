@@ -24,5 +24,6 @@ char* load_kernel_source(const char* const path, int* error_code) {
     source_code[file_size] = 0;
 
     *error_code = 0;
+    
     return source_code;
 }

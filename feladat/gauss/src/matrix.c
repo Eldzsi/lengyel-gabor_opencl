@@ -13,6 +13,7 @@
 
 void generate_matrix(float* matrix, int size) {
     srand(time(NULL));
+    
     for (int i = 0; i < size * size; i++) {
         matrix[i] = (float)(rand() % 10); 
     }
