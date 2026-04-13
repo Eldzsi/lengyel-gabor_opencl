@@ -11,11 +11,11 @@
 #include <math.h>
 #include <time.h>
 
-#define BLOCK_SIZE 64
+#define BLOCK_SIZE 16
 
 void generate_matrix(float* matrix, int size) {
     srand(time(NULL));
-    
+
     for (int i = 0; i < size * size; i++) {
         matrix[i] = (float)(rand() % 10); 
         

@@ -18,7 +18,7 @@
 
 int MATRIX_SIZE = 1000;
 
-#define MAX_MATRIX_SIZE_CPU 10
+#define MAX_MATRIX_SIZE_CPU 2000
 
 int main(int argc, char* argv[]) {
     if (argc > 1) {
@@ -139,6 +139,6 @@ int main(int argc, char* argv[]) {
 
     free(matrix_gpu);
     free(matrix_cpu);
-    
+
     return 0;
 }

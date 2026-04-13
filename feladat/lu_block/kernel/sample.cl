@@ -1,4 +1,4 @@
-#define BLOCK_SIZE 64
+#define BLOCK_SIZE 16
 
 __kernel void lu_factorize_block(__global float* matrix, int k, int n) {
     __local float local_block[BLOCK_SIZE][BLOCK_SIZE];
