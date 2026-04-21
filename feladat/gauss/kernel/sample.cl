@@ -1,43 +1,43 @@
-__kernel void pivot_and_swap(__global float* matrix, int k, int n, __global int* sign) {
+__kernel void pivot_and_swap(__global float* matrix, int pivot_index, int size, __global int* sign) {
     int id = get_global_id(0);
     if (id != 0) {
         return; 
     }
 
-    int max_row = k;
-    float max_val = fabs(matrix[k * n + k]);
+    int max_row = pivot_index;
+    float max_value = fabs(matrix[pivot_index * size + pivot_index]);
     
-    for (int r = k + 1; r < n; r++) {
-        float current_val = fabs(matrix[r * n + k]);
-        if (current_val > max_val) {
-            max_val = current_val;
-            max_row = r;
+    for (int row = pivot_index + 1; row < size; row++) {
+        float current_value = fabs(matrix[row * size + pivot_index]);
+        if (current_value > max_value) {
+            max_value = current_value;
+            max_row = row;
         }
     }
 
-    if (max_row != k) {
-        for (int c = 0; c < n; c++) {
-            float tmp = matrix[k * n + c];
-            matrix[k * n + c] = matrix[max_row * n + c];
-            matrix[max_row * n + c] = tmp;
+    if (max_row != pivot_index) {
+        for (int col = 0; col < size; col++) {
+            float temp = matrix[pivot_index * size + col];
+            matrix[pivot_index * size + col] = matrix[max_row * size + col];
+            matrix[max_row * size + col] = temp;
         }
         *sign = -(*sign);
     }
 }
 
-__kernel void calculate_determinant_gauss(__global float* matrix, int k, int n) {
-    int j = get_global_id(0) + k + 1;
-    int i = get_global_id(1) + k + 1;
+__kernel void calculate_determinant_gauss(__global float* matrix, int pivot_index, int size) {
+    int row = get_global_id(1) + pivot_index + 1;
+    int col = get_global_id(0) + pivot_index + 1;
     
-    if (i >= n || j >= n) {
+    if (row >= size || col >= size) {
         return;
     }
     
-    float pivot = matrix[k * n + k];
+    float pivot = matrix[pivot_index * size + pivot_index];
     if (fabs(pivot) < 1e-12f) {
         return;
     }
     
-    float factor = matrix[i * n + k] / pivot;
-    matrix[i * n + j] -= factor * matrix[k * n + j];
+    float factor = matrix[row * size + pivot_index] / pivot;
+    matrix[row * size + col] -= factor * matrix[pivot_index * size + col];
 }

@@ -12,7 +12,7 @@
 #include <time.h>
 
 void generate_matrix(float* matrix, int size) {
-    srand(time(NULL));
+    srand(42);
     
     for (int i = 0; i < size * size; i++) {
         matrix[i] = (float)(rand() % 10); 
@@ -31,64 +31,64 @@ void print_matrix(float* matrix, int size) {
 void calculate_determinant_gauss(float* matrix, int size, float* out_mantissa, long long* out_exponent, int* out_sign) {
     int sign = 1;
 
-    for (int k = 0; k < size - 1; k++) {
-        int max_row = k;
-        float max_val = fabs(matrix[k * size + k]);
+    for (int pivot_index = 0; pivot_index < size - 1; pivot_index++) {
+        int max_row = pivot_index;
+        float max_value = fabs(matrix[pivot_index * size + pivot_index]);
 
-        for (int i = k + 1; i < size; i++) {
-            if (fabs(matrix[i * size + k]) > max_val) {
-                max_val = fabs(matrix[i * size + k]);
-                max_row = i;
+        for (int row = pivot_index + 1; row < size; row++) {
+            if (fabs(matrix[row * size + pivot_index]) > max_value) {
+                max_value = fabs(matrix[row * size + pivot_index]);
+                max_row = row;
             }
         }
 
-        if (max_val < 1e-12) {
+        if (max_value < 1e-12) {
             *out_mantissa = 0.0;
             *out_exponent = 0;
             *out_sign = 1;
             return;
         }
 
-        if (max_row != k) {
-            for (int j = 0; j < size; j++) {
-                float tmp_val = matrix[k * size + j];
-                matrix[k * size + j] = matrix[max_row * size + j];
-                matrix[max_row * size + j] = tmp_val;
+        if (max_row != pivot_index) {
+            for (int col = 0; col < size; col++) {
+                float temp = matrix[pivot_index * size + col];
+                matrix[pivot_index * size + col] = matrix[max_row * size + col];
+                matrix[max_row * size + col] = temp;
             }
             sign = -sign; 
         }
 
-        float pivot = matrix[k * size + k];
+        float pivot = matrix[pivot_index * size + pivot_index];
     
-        for (int i = k + 1; i < size; i++) {
-            float factor = matrix[i * size + k] / pivot;
+        for (int row = pivot_index + 1; row < size; row++) {
+            float factor = matrix[row * size + pivot_index] / pivot;
             
-            for (int j = k + 1; j < size; j++) {
-                matrix[i * size + j] -= factor * matrix[k * size + j];
+            for (int col = pivot_index + 1; col < size; col++) {
+                matrix[row * size + col] -= factor * matrix[pivot_index * size + col];
             }
             
-            matrix[i * size + k] = 0.0f;
+            matrix[row * size + pivot_index] = 0.0f;
         }
     }
 
     float mantissa = 1.0;
     long long exponent = 0;
 
-    for (int i = 0; i < size; i++) {
-        float val = matrix[i * size + i];
+    for (int diag_index = 0; diag_index < size; diag_index++) {
+        float value = matrix[diag_index * size + diag_index];
 
-        if (fabs(val) < 1e-12) {
+        if (fabs(value) < 1e-12) {
             mantissa = 0.0;
             exponent = 0; 
             break;
         }
 
-        if (val < 0) {
+        if (value < 0) {
             sign = -sign;
-            val = -val;
+            value = -value;
         }
 
-        mantissa *= val;
+        mantissa *= value;
 
         while (mantissa >= 10.0) {
             mantissa /= 10.0;
@@ -113,7 +113,9 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
 
     clGetPlatformIDs(1, &platform_id, &n_platforms);
     err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
-    if (err != CL_SUCCESS) err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, &n_devices);
+    if (err != CL_SUCCESS) {
+        err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, &n_devices);
+    }
 
     cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
     
@@ -122,7 +124,9 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
 
     int error_code;
     char* kernel_code = load_kernel_source("kernel/sample.cl", &error_code);
-    if (error_code != 0) kernel_code = load_kernel_source("sample.cl", &error_code);
+    if (error_code != 0) {
+        kernel_code = load_kernel_source("sample.cl", &error_code);
+    }
 
     cl_program program = clCreateProgramWithSource(context, 1, (const char**)&kernel_code, NULL, &err);
     free(kernel_code);
@@ -140,20 +144,20 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
     int initial_sign = 1;
     cl_mem gpu_sign = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int), &initial_sign, &err);
 
-    for (int k = 0; k < size - 1; k++) {
+    for (int pivot_index = 0; pivot_index < size - 1; pivot_index++) {
         clSetKernelArg(kernel_pivot, 0, sizeof(cl_mem), &gpu_matrix);
-        clSetKernelArg(kernel_pivot, 1, sizeof(int), &k);
+        clSetKernelArg(kernel_pivot, 1, sizeof(int), &pivot_index);
         clSetKernelArg(kernel_pivot, 2, sizeof(int), &size);
         clSetKernelArg(kernel_pivot, 3, sizeof(cl_mem), &gpu_sign);
         size_t pivot_work_size = 1;
         clEnqueueNDRangeKernel(queue, kernel_pivot, 1, NULL, &pivot_work_size, NULL, 0, NULL, NULL);
 
         clSetKernelArg(kernel_gauss, 0, sizeof(cl_mem), &gpu_matrix);
-        clSetKernelArg(kernel_gauss, 1, sizeof(int), &k);
+        clSetKernelArg(kernel_gauss, 1, sizeof(int), &pivot_index);
         clSetKernelArg(kernel_gauss, 2, sizeof(int), &size);
-        size_t global_work_size[2] = {size - 1 - k, size - 1 - k};
+        size_t global_work_size[2] = {size - 1 - pivot_index, size - 1 - pivot_index};
         if (global_work_size[0] > 0 && global_work_size[1] > 0) {
-            clEnqueueNDRangeKernel(queue, kernel_gauss, 2, NULL, global_work_size, NULL, 0, NULL, &kernel_events[k]);
+            clEnqueueNDRangeKernel(queue, kernel_gauss, 2, NULL, global_work_size, NULL, 0, NULL, &kernel_events[pivot_index]);
         }
     }
     clFinish(queue);
@@ -173,12 +177,12 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
     float time_read_sec = (float)(time_end - time_start) / 1.0e9;
 
     cl_ulong total_kernel_ns = 0;
-    for (int k = 0; k < size - 1; k++) {
-        if ((size - 1 - k) > 0) {
-            clGetEventProfilingInfo(kernel_events[k], CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
-            clGetEventProfilingInfo(kernel_events[k], CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
+    for (int pivot_index = 0; pivot_index < size - 1; pivot_index++) {
+        if ((size - 1 - pivot_index) > 0) {
+            clGetEventProfilingInfo(kernel_events[pivot_index], CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
+            clGetEventProfilingInfo(kernel_events[pivot_index], CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
             total_kernel_ns += (time_end - time_start);
-            clReleaseEvent(kernel_events[k]);
+            clReleaseEvent(kernel_events[pivot_index]);
         }
     }
     float gpu_calc = (float)total_kernel_ns / 1.0e9;
@@ -197,27 +201,27 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
     long long exponent = 0;
     int sign = 1;
 
-    for (int i = 0; i < size; i++) {
-        float val = matrix[i * size + i];
+    for (int diag_index = 0; diag_index < size; diag_index++) {
+        float value = matrix[diag_index * size + diag_index];
 
-        if (fabs(val) < 1e-12) {
+        if (fabs(value) < 1e-12) {
             mantissa = 0.0;
             exponent = 0; 
             break;
         }
 
-        if (val == 0.0) {
+        if (value == 0.0) {
             mantissa = 0.0;
             exponent = 0; 
             break;
         }
 
-        if (val < 0) {
+        if (value < 0) {
             sign = -sign;
-            val = -val;
+            value = -value;
         }
 
-        mantissa *= val;
+        mantissa *= value;
 
         while (mantissa >= 10.0) {
             mantissa /= 10.0;
@@ -235,4 +239,13 @@ void calculate_determinant_gauss_opencl(float* matrix, int size, float* out_mant
     *out_mantissa = mantissa;
     *out_exponent = exponent;
     *out_sign = sign;
+
+    free(kernel_events);
+    clReleaseMemObject(gpu_matrix);
+    clReleaseMemObject(gpu_sign);
+    clReleaseKernel(kernel_pivot);
+    clReleaseKernel(kernel_gauss);
+    clReleaseProgram(program);
+    clReleaseCommandQueue(queue);
+    clReleaseContext(context);
 }

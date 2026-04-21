@@ -1,84 +1,85 @@
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 128
 
-__kernel void lu_factorize_block(__global float* matrix, int k, int n) {
+__kernel void lu_factorize_block(__global float* matrix, int block_offset, int matrix_size) {
     __local float local_block[BLOCK_SIZE][BLOCK_SIZE];
     
-    int tx = get_local_id(0);
-    int ty = get_local_id(1);
+    int local_col = get_local_id(0);
+    int local_row = get_local_id(1);
     
-    int row = k + ty;
-    int col = k + tx;
+    int global_row = block_offset + local_row;
+    int global_col = block_offset + local_col;
 
-    if (row < n && col < n) {
-        local_block[ty][tx] = matrix[row * n + col];
+    if (global_row < matrix_size && global_col < matrix_size) {
+        local_block[local_row][local_col] = matrix[global_row * matrix_size + global_col];
     } else {
-        local_block[ty][tx] = 0.0f;
+        local_block[local_row][local_col] = 0.0f;
     }
+
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    for (int p = 0; p < BLOCK_SIZE; p++) {
-        if (ty > p && tx == p) {
-            float pivot = local_block[p][p];
+    for (int local_pivot_index = 0; local_pivot_index < BLOCK_SIZE; local_pivot_index++) {
+        if (local_row > local_pivot_index && local_col == local_pivot_index) {
+            float pivot = local_block[local_pivot_index][local_pivot_index];
             if (fabs(pivot) > 1e-12f) {
-                local_block[ty][tx] /= pivot;
+                local_block[local_row][local_col] /= pivot;
             }
         }
         barrier(CLK_LOCAL_MEM_FENCE);
 
-        if (ty > p && tx > p) {
-            local_block[ty][tx] -= local_block[ty][p] * local_block[p][tx];
+        if (local_row > local_pivot_index && local_col > local_pivot_index) {
+            local_block[local_row][local_col] -= local_block[local_row][local_pivot_index] * local_block[local_pivot_index][local_col];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    if (row < n && col < n) {
-        matrix[row * n + col] = local_block[ty][tx];
+    if (global_row < matrix_size && global_col < matrix_size) {
+        matrix[global_row * matrix_size + global_col] = local_block[local_row][local_col];
     }
 }
 
-__kernel void lu_update_panels(__global float* matrix, int k, int n) {
-    int idx = get_global_id(0);
-    int remaining = n - k - BLOCK_SIZE;
+__kernel void lu_update_panels(__global float* matrix, int block_offset, int matrix_size) {
+    int id = get_global_id(0);
+    int remaining_size = matrix_size - block_offset - BLOCK_SIZE;
 
-    if (idx >= remaining) {
+    if (id >= remaining_size) {
         return;
     }
 
-    int r = k + BLOCK_SIZE + idx;
-    int c_u = k + BLOCK_SIZE + idx;
+    int panel_row = block_offset + BLOCK_SIZE + id;
+    int panel_col = block_offset + BLOCK_SIZE + id;
 
-    for (int p = 0; p < BLOCK_SIZE; p++) {
-        float pivot = matrix[(k + p) * n + (k + p)];
+    for (int local_pivot_index = 0; local_pivot_index < BLOCK_SIZE; local_pivot_index++) {
+        float pivot = matrix[(block_offset + local_pivot_index) * matrix_size + (block_offset + local_pivot_index)];
         if (fabs(pivot) > 1e-12f) {
-            matrix[r * n + (k + p)] /= pivot;
+            matrix[panel_row * matrix_size + (block_offset + local_pivot_index)] /= pivot;
         }
-        float factor = matrix[r * n + (k + p)];
+        float factor = matrix[panel_row * matrix_size + (block_offset + local_pivot_index)];
         
-        for (int c = p + 1; c < BLOCK_SIZE; c++) {
-            matrix[r * n + (k + c)] -= factor * matrix[(k + p) * n + (k + c)];
+        for (int inner_col = local_pivot_index + 1; inner_col < BLOCK_SIZE; inner_col++) {
+            matrix[panel_row * matrix_size + (block_offset + inner_col)] -= factor * matrix[(block_offset + local_pivot_index) * matrix_size + (block_offset + inner_col)];
         }
     }
 
-    for (int p = 0; p < BLOCK_SIZE; p++) {
-        for (int row_u = p + 1; row_u < BLOCK_SIZE; row_u++) {
-            float factor = matrix[(k + row_u) * n + (k + p)];
-            matrix[(k + row_u) * n + c_u] -= factor * matrix[(k + p) * n + c_u];
+    for (int local_pivot_index = 0; local_pivot_index < BLOCK_SIZE; local_pivot_index++) {
+        for (int inner_row = local_pivot_index + 1; inner_row < BLOCK_SIZE; inner_row++) {
+            float factor = matrix[(block_offset + inner_row) * matrix_size + (block_offset + local_pivot_index)];
+            matrix[(block_offset + inner_row) * matrix_size + panel_col] -= factor * matrix[(block_offset + local_pivot_index) * matrix_size + panel_col];
         }
     }
 }
 
-__kernel void lu_update_trailing_matrix(__global float* matrix, int k, int n) {
-    int col = get_global_id(0) + k + BLOCK_SIZE;
-    int row = get_global_id(1) + k + BLOCK_SIZE;
+__kernel void lu_update_trailing_matrix(__global float* matrix, int block_offset, int matrix_size) {
+    int global_col = get_global_id(0) + block_offset + BLOCK_SIZE;
+    int global_row = get_global_id(1) + block_offset + BLOCK_SIZE;
 
-    if (row >= n || col >= n) {
+    if (global_row >= matrix_size || global_col >= matrix_size) {
         return;
     }
 
     float sum = 0.0f;
-    for (int p = 0; p < BLOCK_SIZE; p++) {
-        sum += matrix[row * n + (k + p)] * matrix[(k + p) * n + col];
+    for (int i = 0; i < BLOCK_SIZE; i++) {
+        sum += matrix[global_row * matrix_size + (block_offset + i)] * matrix[(block_offset + i) * matrix_size + global_col];
     }
     
-    matrix[row * n + col] -= sum;
+    matrix[global_row * matrix_size + global_col] -= sum;
 }

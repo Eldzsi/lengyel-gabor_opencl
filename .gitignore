@@ -1,0 +1,5 @@
+*.exe
+*.txt
+examples/
+MinGW/
+shell.bat

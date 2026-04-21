@@ -14,7 +14,7 @@
 #define BLOCK_SIZE 16
 
 void generate_matrix(float* matrix, int size) {
-    srand(time(NULL));
+    srand(42);
 
     for (int i = 0; i < size * size; i++) {
         matrix[i] = (float)(rand() % 10); 
